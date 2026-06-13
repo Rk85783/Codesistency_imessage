@@ -1,3 +1,5 @@
+import { CronJob } from "cron";
+import http from "node:http";
 import https from "node:https";
 
 // every 14 minutes send a GET request to the health endpoint
