@@ -1,15 +1,17 @@
 import { getAuth } from "@clerk/express";
-import User from "../models/user.model";
+import User from "../models/user.model.js";
 
 export async function protectRoute(req, res, next) {
   try {
-    const { userId } = getAuth();
+    const { userId } = getAuth(req);
     if (!userId) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }
 
+    console.log("userId -------", userId);
     const user = await User.findOne({ clerkId: userId });
+    console.log("user -------", user);
     if (!user) {
       res.status(404).json({ message: "User profile is not synced yet" });
       return;

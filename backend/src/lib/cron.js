@@ -7,7 +7,7 @@ const job = new CronJob("*/14 * * * *", function () {
   const base = process.env.FRONTEND_URL;
   if (!base) return;
   const url = new URL("/health", base).href;
-  const client = url.startsWith("https:") ? https : https;
+  const client = url.startsWith("https:") ? https : http;
 
   client
     .get(url, (res) => {

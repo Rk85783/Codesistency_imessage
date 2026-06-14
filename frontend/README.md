@@ -1,18 +1,48 @@
-# React + Vite
+# imessage — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 · Vite 8 · Tailwind 4 · Zustand · HeroUI · Clerk · Socket.IO client
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev      # Vite dev server (port 5173)
+```
 
-## React Compiler
+Proxy: In dev mode, API calls go to `http://localhost:3000/api` (the backend). In prod, they go to `/api` on the same host.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Commands
 
-Note: This will impact Vite dev & build performances.
+| command | what |
+|---------|------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | production build → `dist/` |
+| `npm run lint` | ESLint (flat config) |
+| `npm run preview` | preview production build |
 
-## Expanding the ESLint configuration
+## Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+src/
+├── main.jsx           entry — ClerkProvider → BrowserRouter → App
+├── App.jsx            routes, auth gate, theme/wallpaper providers
+├── store/
+│   ├── useAuthStore.js    auth state + socket lifecycle
+│   └── useChatStore.js    messages, conversations, persisted (only isSoundEnabled)
+├── lib/
+│   ├── axios.js           preconfigured Axios instance
+│   ├── imagekit.js        ImageKit URL transformation helpers
+│   └── utils.js
+├── pages/             AuthPage, ChatPage
+├── components/        auth/, chat/, ThemeToggle, WallpaperPicker, PageLoader
+├── context/           ThemeContext, WallpaperContext
+├── hooks/             useKeyboardSound, useScrollToBottom, etc.
+└── data/              wallpapers, HeroUI theme presets
+```
+
+## Key details
+
+- **Auth**: Clerk SDK gates routes. `useAuthStore.checkAuth()` is called after Clerk confirms sign-in; it calls `GET /api/auth/check` then connects Socket.IO.
+- **Socket.IO**: Connects automatically on auth with `userId` query param. Listens for `getOnlineUsers` and `newMessage` events.
+- **Persistence**: Zustand middleware persists to localStorage key `imessage-storage`. Only `isSoundEnabled` is persisted (others reset on refresh).
+- **Media**: Sent as `FormData` with key `"media"`. ImageKit URLs are transformed at render time via `?tr=` query param.
