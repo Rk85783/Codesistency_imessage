@@ -1,5 +1,6 @@
 import express from "express";
 import User from "../models/user.model.js";
+import Message from "../models/message.model.js";
 import { verifyWebhook } from "@clerk/backend/webhooks";
 
 const router = express.Router();
@@ -12,7 +13,6 @@ router.post("/", async (req, res) => {
       return;
     }
 
-    // clerk's verifier expects a Web Request with the raw body; express.raw gives a Buffer.
     const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : String(req.body);
     const request = new Request("http://internal/webhooks/clerk", {
       method: "POST",
@@ -20,17 +20,23 @@ router.post("/", async (req, res) => {
       body: payload,
     });
 
-    // throws if the signature is wrong or the body was tempered with; only then do we trust evt.
     const evt = await verifyWebhook(request, { signingSecret });
 
     if (evt.type === "user.created" || evt.type === "user.updated") {
       const u = evt.data;
 
-      const email =
-        u.email_addresses?.find((e) => e.id === u.primary_email_address_id)?.email_address ??
-        u.email_addresses?.[0]?.email_address;
+      const verifiedEmail = u.email_addresses?.find(
+        (e) => e.id === u.primary_email_address_id && e.verification?.status === "verified",
+      );
+      const email = verifiedEmail?.email_address ?? u.email_addresses?.[0]?.email_address;
 
-      const fullName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || email?.split("@")[0];
+      if (!email) {
+        res.status(200).json({ received: true, skipped: true });
+        return;
+      }
+
+      const fullName =
+        [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || email.split("@")[0];
 
       await User.findOneAndUpdate(
         { clerkId: u.id },
@@ -40,7 +46,16 @@ router.post("/", async (req, res) => {
     }
 
     if (evt.type === "user.deleted") {
-      if (evt.data.id) await User.findOneAndDelete({ clerkId: evt.data.id });
+      const clerkId = evt.data.id;
+      if (clerkId) {
+        const user = await User.findOne({ clerkId });
+        if (user) {
+          await Message.deleteMany({
+            $or: [{ senderId: user._id }, { receiverId: user._id }],
+          });
+          await User.findOneAndDelete({ clerkId });
+        }
+      }
     }
 
     res.status(200).json({ received: true });

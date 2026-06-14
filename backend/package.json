@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "build": "rm -rf dist && cp -R src dist",
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('src','dist',{recursive:true})\"",
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:seed": "node src/seeds/user.seed.js"
@@ -14,12 +14,15 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@clerk/backend": "^3.7.0",
     "@clerk/express": "^2.1.26",
     "@imagekit/nodejs": "^7.7.0",
     "cors": "^2.8.6",
     "cron": "^4.4.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "mongoose": "^9.7.0",
     "multer": "^2.1.1",
     "socket.io": "^4.8.3"

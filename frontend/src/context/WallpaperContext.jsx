@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { frameStyleFromUrl, getWallpaperById } from "../data/wallpapers";
 import { WallpaperContext } from "./wallpaper";
 
@@ -18,16 +18,20 @@ export function WallpaperProvider({ children }) {
     localStorage.setItem(STORAGE_KEY, wallpaperId);
   }, [wallpaperId]);
 
-  const wallpaper = getWallpaperById(wallpaperId);
-
   const setWallpaperId = (id) => {
     setWallpaperIdState(id);
   };
 
-  const frameStyle = frameStyleFromUrl(wallpaper.url);
+  const wallpaper = useMemo(() => getWallpaperById(wallpaperId), [wallpaperId]);
+  const frameStyle = useMemo(() => frameStyleFromUrl(wallpaper.url), [wallpaper.url]);
+
+  const value = useMemo(
+    () => ({ wallpaperId, setWallpaperId, wallpaper, frameStyle }),
+    [wallpaperId, setWallpaperId, wallpaper, frameStyle],
+  );
 
   return (
-    <WallpaperContext.Provider value={{ wallpaperId, setWallpaperId, wallpaper, frameStyle }}>
+    <WallpaperContext.Provider value={value}>
       {children}
     </WallpaperContext.Provider>
   );

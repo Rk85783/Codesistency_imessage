@@ -11,6 +11,8 @@ export function ThemeToggle() {
         size="sm"
         variant={theme === "light" ? "primary" : "ghost"}
         isIconOnly
+        aria-label="Light theme"
+        aria-pressed={theme === "light"}
         onPress={() => setTheme("light")}
       >
         <Sun className="size-4" />
@@ -19,6 +21,8 @@ export function ThemeToggle() {
         size="sm"
         variant={theme === "dark" ? "primary" : "ghost"}
         isIconOnly
+        aria-label="Dark theme"
+        aria-pressed={theme === "dark"}
         onPress={() => setTheme("dark")}
       >
         <Moon className="size-4" />

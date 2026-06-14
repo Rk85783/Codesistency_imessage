@@ -9,9 +9,7 @@ export async function protectRoute(req, res, next) {
       return;
     }
 
-    console.log("userId -------", userId);
     const user = await User.findOne({ clerkId: userId });
-    console.log("user -------", user);
     if (!user) {
       res.status(404).json({ message: "User profile is not synced yet" });
       return;
@@ -21,7 +19,7 @@ export async function protectRoute(req, res, next) {
 
     next();
   } catch (error) {
-    console.error("Error in protectRoute middleware:", error.message);
+    console.error("Error in protectRoute middleware:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 }

@@ -1,9 +1,9 @@
+import { useMemo } from "react";
 import { useMediaQuery } from "./useMediaQuery";
 import { formatMessageTime } from "../lib/utils";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 
-// John Doe -> JD
 export function getInitials(name) {
   return name
     .split(" ")
@@ -12,11 +12,16 @@ export function getInitials(name) {
     .join("");
 }
 
-// mapUserToConversation is an adapter — it converts the raw backend shapes (a user document + an array of message documents) into the clean view-model that the chat UI components expect to render.
-
-// Two transformations happen:
-// 1. Messages → UI messages
-// 2. User → peer
+function mapReplyTo(replyTo) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo._id,
+    text: replyTo.text || "",
+    senderId: replyTo.senderId,
+    image: replyTo.image,
+    video: replyTo.video,
+  };
+}
 
 function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
   const mappedMessages = messages.map((message) => ({
@@ -24,8 +29,15 @@ function mapUserToConversation({ user, messages, authUser, onlineUsers }) {
     role: String(message.senderId) === String(authUser?._id) ? "me" : "them",
     text: message.text || "",
     time: formatMessageTime(message.createdAt),
+    createdAt: message.createdAt,
     imageUrl: message.image,
     videoUrl: message.video,
+    senderId: message.senderId,
+    replyTo: mapReplyTo(message.replyTo),
+    read: message.read || false,
+    isDeleted: message.isDeleted || false,
+    editedAt: message.editedAt || null,
+    reactions: message.reactions || [],
   }));
 
   return {
@@ -52,14 +64,22 @@ export function useSelectedConversation() {
 
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
 
-  const selectedUser = activeConversationId
-    ? users.find((user) => user._id === activeConversationId) ||
-      conversations.find((user) => user._id === activeConversationId)
-    : null;
+  const selectedUser = useMemo(
+    () =>
+      activeConversationId
+        ? users.find((user) => user._id === activeConversationId) ||
+          conversations.find((user) => user._id === activeConversationId)
+        : null,
+    [activeConversationId, users, conversations],
+  );
 
-  const activeConversation = selectedUser
-    ? mapUserToConversation({ user: selectedUser, messages, authUser, onlineUsers })
-    : null;
+  const activeConversation = useMemo(
+    () =>
+      selectedUser
+        ? mapUserToConversation({ user: selectedUser, messages, authUser, onlineUsers })
+        : null,
+    [selectedUser, messages, authUser, onlineUsers],
+  );
 
   return {
     activeConversation,

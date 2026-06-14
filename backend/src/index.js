@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
-
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import "dotenv/config";
 import fs from "fs";
 import path from "path";
@@ -14,16 +15,41 @@ import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import { app, server } from "./lib/socket.js";
 
-const PORT = process.env.PORT;
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const PORT = process.env.PORT || 3000;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const publicDir = path.join(process.cwd(), "public");
 
-// It's important that you don't parse the webhook event data, it should be in the raw format
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later" },
+});
+
 app.use("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkWebhook);
 
-app.use(express.json());
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+
+function mongoSanitize(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(mongoSanitize);
+  return Object.fromEntries(
+    Object.entries(obj).flatMap(([key, value]) =>
+      key.startsWith("$") ? [] : [[key, mongoSanitize(value)]]
+    )
+  );
+}
+
+app.use((req, _res, next) => {
+  if (req.body) req.body = mongoSanitize(req.body);
+  next();
+});
+
+app.use("/api", apiLimiter);
 app.use(clerkMiddleware());
 
 app.get("/health", (req, res) => {
@@ -33,19 +59,36 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
-// if the public directory exists, serve the static files
-// this is for the production build
 if (fs.existsSync(publicDir)) {
   app.use(express.static(publicDir));
 
-  app.get("/{*any}", (req, res, next) => {
+  app.get("*", (req, res, next) => {
     res.sendFile(path.join(publicDir, "index.html"), (err) => next(err));
   });
 }
 
-server.listen(PORT, () => {
-  connectDB();
-  console.log("Server is up and running on PORT:", PORT);
+app.use((err, req, res, _next) => {
+  console.error("Unhandled error:", err);
 
-  if (process.env.NODE_ENV === "production") job.start();
+  if (err.name === "MulterError") {
+    res.status(400).json({ message: err.message });
+    return;
+  }
+
+  if (err.type === "entity.too.large") {
+    res.status(413).json({ message: "Request body too large" });
+    return;
+  }
+
+  res.status(err.status || 500).json({ message: err.message || "Internal server error" });
 });
+
+async function start() {
+  await connectDB();
+  server.listen(PORT, () => {
+    console.log("Server is up and running on PORT:", PORT);
+    if (process.env.NODE_ENV === "production") job.start();
+  });
+}
+
+start();

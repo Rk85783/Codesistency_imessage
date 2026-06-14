@@ -1,7 +1,19 @@
-import { Avatar, Button } from "@heroui/react";
-import { ChevronLeftIcon, Volume2Icon, VolumeXIcon, XIcon } from "lucide-react";
+import { Avatar, Button, Dropdown, Input } from "@heroui/react";
+import {
+  ChevronLeftIcon,
+  ImageIcon,
+  MoreVerticalIcon,
+  SearchIcon,
+  ShieldAlertIcon,
+  ShieldOffIcon,
+  Volume2Icon,
+  VolumeXIcon,
+  XIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { AppLogo } from "../AppLogo";
 import { AvatarWithOnlineIndicator } from "./AvatarWithOnlineIndicator";
+import { MediaGallery } from "./MediaGallery";
 
 import { ThemePresetPicker } from "../ThemePresetPicker";
 
@@ -15,8 +27,42 @@ export function ChatHeader() {
   const isSoundEnabled = useChatStore((state) => state.isSoundEnabled);
   const setActiveConversationId = useChatStore((state) => state.setActiveConversationId);
   const setSoundEnabled = useChatStore((state) => state.setSoundEnabled);
+  const searchMessages = useChatStore((state) => state.searchMessages);
+  const clearSearchResults = useChatStore((state) => state.clearSearchResults);
+  const isSearching = useChatStore((state) => state.isSearching);
+  const isPeerTyping = useChatStore((state) => state.isPeerTyping);
+  const blockUser = useChatStore((state) => state.blockUser);
+  const unblockUser = useChatStore((state) => state.unblockUser);
 
-  const { activeConversation, isLargeScreen } = useSelectedConversation();
+  const { activeConversation, isLargeScreen, activeConversationId } = useSelectedConversation();
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const searchDebounceRef = useRef(null);
+
+  useEffect(() => {
+    setShowSearch(false);
+    setSearchQuery("");
+    clearSearchResults();
+  }, [activeConversationId, clearSearchResults]);
+
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (value.trim()) {
+      searchDebounceRef.current = setTimeout(() => {
+        searchMessages(activeConversationId, value);
+      }, 300);
+    } else {
+      clearSearchResults();
+    }
+  };
+
+  const closeSearch = () => {
+    setShowSearch(false);
+    setSearchQuery("");
+    clearSearchResults();
+  };
 
   return (
     <header className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-1.5 py-1.5 sm:gap-2 sm:px-2 sm:py-2">
@@ -32,9 +78,30 @@ export function ChatHeader() {
         </Button>
       ) : null}
 
-      {activeConversation ? (
+      {showSearch ? (
+        <div className="flex flex-1 items-center gap-2">
+          <Input
+            fullWidth
+            variant="secondary"
+            placeholder="Search messages..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            autoFocus
+            className="flex-1"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            isIconOnly
+            className="shrink-0"
+            onPress={closeSearch}
+          >
+            <XIcon className="size-5" />
+          </Button>
+        </div>
+      ) : activeConversation ? (
         <>
-          <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? true}>
+          <AvatarWithOnlineIndicator isOnline={activeConversation.peer.isOnline ?? false}>
             <Avatar className="size-9 shrink-0">
               <Avatar.Image
                 alt={activeConversation.peer.name}
@@ -51,7 +118,9 @@ export function ChatHeader() {
               {activeConversation.peer.name}
             </p>
             <p className="truncate text-xs text-muted">
-              {activeConversation.peer.isOnline ? (
+              {isPeerTyping ? (
+                <span className="font-medium italic text-accent">Typing...</span>
+              ) : activeConversation.peer.isOnline ? (
                 <span className="font-medium text-success">Online</span>
               ) : (
                 "Offline"
@@ -70,6 +139,29 @@ export function ChatHeader() {
 
       <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-0.5 sm:gap-1">
         <div className="hidden min-[400px]:contents">
+          {activeConversation && !showSearch ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              className="shrink-0"
+              onPress={() => setShowSearch(true)}
+            >
+              <SearchIcon className="size-5" strokeWidth={2} />
+            </Button>
+          ) : null}
+          {activeConversation ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              className="shrink-0"
+              aria-label="Media gallery"
+              onPress={() => setShowMediaGallery(true)}
+            >
+              <ImageIcon className="size-5" strokeWidth={2} />
+            </Button>
+          ) : null}
           <WallpaperPicker />
           <ThemePresetPicker />
         </div>
@@ -91,19 +183,60 @@ export function ChatHeader() {
           )}
         </Button>
 
-        {activeConversation ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            className="shrink-0"
-            aria-label="Close chat"
-            onPress={() => setActiveConversationId(null)}
-          >
-            <XIcon className="size-5.5" strokeWidth={2} aria-hidden />
-          </Button>
+        {activeConversation && !showSearch ? (
+          <>
+            <Dropdown.Root>
+              <Dropdown.Trigger>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  isIconOnly
+                  className="shrink-0"
+                  aria-label="More options"
+                >
+                  <MoreVerticalIcon className="size-5.5" strokeWidth={2} />
+                </Button>
+              </Dropdown.Trigger>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu onAction={(key) => {
+                  if (key === "block") {
+                    blockUser(activeConversationId);
+                  } else if (key === "unblock") {
+                    unblockUser(activeConversationId);
+                  }
+                }}>
+                  <Dropdown.Item id="block" textValue="Block User">
+                    <ShieldAlertIcon className="size-4" />
+                    Block User
+                  </Dropdown.Item>
+                  <Dropdown.Item id="unblock" textValue="Unblock User">
+                    <ShieldOffIcon className="size-4" />
+                    Unblock User
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown.Root>
+            <Button
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              className="shrink-0"
+              aria-label="Close chat"
+              onPress={() => setActiveConversationId(null)}
+            >
+              <XIcon className="size-5.5" strokeWidth={2} aria-hidden />
+            </Button>
+          </>
         ) : null}
       </div>
+
+      {activeConversation ? (
+        <MediaGallery
+          isOpen={showMediaGallery}
+          onClose={() => setShowMediaGallery(false)}
+          userId={activeConversationId}
+        />
+      ) : null}
     </header>
   );
 }
